@@ -1,0 +1,216 @@
+"""
+Final assignment 1: mastermind game
+Hidde Klinkhamer - 1838178
+
+Opdracht: implementeer het spel Mastermind. Je moet als mens tegen de computer kunnen spelen en andersom.
+Jij moet dus een code kunnen raden terwijl de computer feedback geeft,
+maar de computer moet ook een code kunnen raden terwijl feedback automatisch gegenereerd wordt.
+
+dit document bevat alle nodige functies
+"""
+
+#nodige imports
+import random
+import itertools
+
+# algemene variabelen
+colors = ["r", "g", "b", "y", "o", "p", "w", "k", "l"]
+depth = 0
+guesses_done = []
+color_list = []
+code_list = []
+codeList = []
+max_guesses = 10
+max_length = 4
+
+#dictionary om de letters om te kunnen zetten naar emoji's
+colors_real = {
+    'r': '🔴',
+    'g': '🟢',
+    'b': '🔵',
+    'y': '🟡',
+    'o': '🟠',
+    'p': '🟣',
+    'w': '⚪',
+    'k': '⚫',
+    'l': '🟤'}
+
+#code om tekst kleur te geven
+class LetterKleuren: #https://stackoverflow.com/questions/287871/how-do-i-print-colored-text-to-the-terminal
+    HEADER = '\033[95m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+
+
+def create_Possible_Codes(colors, max_length):
+    #genereert een lijst met daarin alle mogelijke codes
+    return addColor([], colors, max_length, 1)
+
+def addColor(codeList, colors, max_length, current_Depth):
+    if current_Depth > max_length:
+        return codeList
+    if len(codeList) == 0: #als er nog geen combinaties zijn toegevoegd wordt dit nu gedaan
+        for color in colors:
+            codeList.append([color])
+            # add element(s) to the combination
+    else:
+        newCodeList = []
+        for code in codeList:
+            for color in colors:
+                newCode = code.copy()
+                newCode.append(color)
+                newCodeList.append(newCode)
+        codeList = newCodeList
+    return addColor(codeList, colors, max_length, current_Depth+1) #Roep de functie addColor op met de bijgewerkte lijst van combinaties van kleuren en verhoog de huidige diepte met 1.
+
+
+# make codeList and possibleCodes variables
+codeList = create_Possible_Codes(colors, max_length)
+possibleCodes = codeList
+
+def evaluate(guess,secret):
+   score = [0,0]
+   used = []
+   # checking the black pins
+   for position in range(len(guess)):
+        if guess[position] == secret[position]:
+            score[0] += 1
+            used.append(position)
+   # checking the white pins
+   secretCopy = secret[::]
+   for position in used:
+       secretCopy.remove(secret[position])
+   for i in range(len(guess)):
+       if i not in used:
+           if guess[i] in secretCopy:
+               score[1] += 1
+               secretCopy.remove(guess[i])
+   return score
+
+def reduce(possibleCodes,code,score):
+  result = []
+  for possibleCode in possibleCodes:
+    # alleen codes die de gegeven score opleveren
+    # kunnen het juiste antwoord zijn
+     if score == evaluate(code,possibleCode):
+        result.append(possibleCode)
+  return result
+
+def own_feedback(secret_code, guess_list): #own writen feedback function.(isn't used)
+    code_frequentie = {}
+    poging_frequentie = {}
+    for i in range(0, len(secret_code)):
+        if secret_code[i] in code_frequentie:
+            code_frequentie[secret_code[i]] += 1
+        else:
+            code_frequentie[secret_code[i]] = 1
+        if guess_list[i] in poging_frequentie:
+            poging_frequentie[guess_list[i]] += 1
+        else:
+            poging_frequentie[guess_list[i]] = 1
+    # checken voor pins op de juiste plek
+    exact_match = 0
+    for i in range(len(secret_code)):
+        if secret_code[i] == guess_list[i]:
+            exact_match += 1
+    # checken voor pins wel in de code maar op de verkeerde plek
+    close_match = 0
+    for kleur in poging_frequentie:
+        if kleur in code_frequentie:
+            close_match += min(poging_frequentie[kleur], code_frequentie[kleur])
+    # creating status, where results are placed in a list (the feedback)
+    close_match -= exact_match
+    status = [exact_match, close_match]
+    return status
+
+def run_mastermind_functies(secret):
+    #lijsten aanmaken die nodig zijn
+    codeList = create_Possible_Codes(colors, max_length)
+    nextGuess = codeList[0]
+    global guesses
+    #de functies meerdere keren laten runnen, tot er 1 mogelijkheid is gevonden of er geen pogingen meer zijn.
+    while guesses < max_guesses:
+        score = evaluate(nextGuess, secret)
+        result = reduce(codeList, nextGuess, score)
+        codeList = result
+        nextGuess = result[0]
+        guesses += 1
+    return result
+
+def self_play_mastermind(code):
+    for i in range(0, max_length):
+        code.append(random.choice(colors)) # genereerd de te raden code
+    for letter in code:
+        code_list.append(colors_real.get(letter, 'Ongeldige kleur')) #kleuren in emoji's zetten
+
+    #prints voor de gebruiker
+    print('\n')
+    print('u kunt kiezen uit de volgende kleuren, typ de bijpassende letter is van de volgende kleuren:\nr=🔴, g=🟢, b=🔵, y=🟡, o=🟠, p=🟣, w=⚪, k=⚫ en l=🟤')
+    print('de feedback is als volgt: [juiste plaats, andere plaats]')
+    print('\n')
+
+    #aan gebuiker eerste gok vragen
+    guess = input("Geef uw code op (Bijv. gdyo): ")
+    guess_list = list(guess)
+
+    #kijken of de ingevoerde gok voeldoet aan de eisen
+    if len(guess) == max_length:
+       for i in guess_list:
+          if i not in colors:
+                print('De code bevat ongeldige informatie, probeer opnieuw.')
+                break
+    else:
+        print("De code bevat teveel of teweinig letters, probeer opnieuw")
+
+    global guesses
+    # gebruiker feedback geven en om nieuwe gok vragen zolang er nog pogingen zijn
+    while guesses < max_guesses:
+        for letter in guess_list:
+            color_list.append(colors_real.get(letter, 'Ongeldige kleur'))
+        print(f'{color_list} --- {evaluate(guess_list, code)}')
+        print('\n')
+        color_list.clear()
+        if guess_list != code:
+            guess = input((f"{LetterKleuren.WARNING}Helaas, de ingegeven code is nog niet volledig goed, u heeft nog {max_guesses - guesses} pogingen over. Geef een nieuwe gok op:  {LetterKleuren.ENDC}"))
+            guess_list = list(guess)
+            if len(guess) == max_length:
+                for i in guess_list:
+                    if i not in colors:
+                        print(f"{LetterKleuren.FAIL}De code bevat ongeldige informatie, probeer opnieuw.{LetterKleuren.ENDC}")
+                        break
+            else:
+                print(f"{LetterKleuren.FAIL}De code bevat teveel of teweinig letters, probeer opnieuw{LetterKleuren.ENDC}")
+                break
+            guesses += 1
+        else:
+            print(f"{LetterKleuren.HEADER}Gefeliciteerd! u heeft de code geraden. Wat een B34ST20{LetterKleuren.ENDC}")
+            print(f"De code was inderdaad {code_list}")
+            break
+    if guesses == 10:
+        print(f"{LetterKleuren.FAIL}Helaas, u heeft geen pogingen meer over. Probeer het nog eens.{LetterKleuren.ENDC} \nDe te raden code was: {code_list} ")
+
+
+def eigenal_goritme(code):
+    #lijsten aanmaken
+    letter_list = []
+    letter_in_code = []
+    for letter in colors:
+        temp_list = []
+        for i in range(max_length):
+            temp_list.append(letter)
+        letter_list.append(temp_list)
+    #lijst met feedback aanmaken
+    for i in range(len(letter_list)):
+        feedback_result = evaluate(code, letter_list[i])[0]
+        if feedback_result > 0:
+            for j in range(feedback_result):
+                letter_in_code.append(letter_list[i][0])
+    #lijst aanmaken met alle mogelijke permutatie van de letters in letter_in_code
+    permutations = list(itertools.permutations(letter_in_code)) #https://chat.openai.com/chat
+
+    #checkt voor elke lijst in permutaties of de lijst de juiste code is
+    for lijst in permutations:
+        if (evaluate(code, lijst)) == [4, 0]:
+            print(f'the code was {lijst}, this code was found by my own algoritm')
+            exit()
